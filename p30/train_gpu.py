@@ -1,6 +1,9 @@
 import torchvision
 import torch
-from p27.model import *
+from tensorboardX import SummaryWriter
+from torch import nn
+from torch.nn import Conv2d, MaxPool2d, Flatten, Linear, Sequential
+import torch.nn
 
 # 准备数据集
 from torch.utils.data import DataLoader
@@ -20,11 +23,36 @@ print(f"测试集的长度是{test_data_size}")
 train_dataloader = DataLoader(train_data, batch_size=64)
 test_dataloader = DataLoader(test_data, batch_size=64)
 
+
 # 创建网络模型
+class Tudui(nn.Module):
+    def __init__(self):
+        super(Tudui, self).__init__()
+        self.model1 = Sequential(
+            Conv2d(3, 32, 5, padding=2),
+            MaxPool2d(2),
+            Conv2d(32, 32, 5, padding=2),
+            MaxPool2d(2),
+            Conv2d(32, 64, 5, padding=2),
+            MaxPool2d(2),
+            Flatten(),
+            Linear(1024, 64),
+            Linear(64, 10)
+        )
+
+    def forward(self, x):
+        x = self.model1(x)
+        return x
+
+
 tudui = Tudui()
+if torch.cuda.is_available():
+    tudui = tudui.cuda()
 
 # 损失函数,分类问题，可以用交叉熵
 loss_fn = nn.CrossEntropyLoss()
+if torch.cuda.is_available():
+    loss_fn = loss_fn.cuda()
 
 # 优化器
 learning_rate = 0.01
@@ -48,6 +76,10 @@ for i in range(epoch):
 
     for data in train_dataloader:
         imgs, target = data
+        if torch.cuda.is_available():
+            imgs = imgs.cuda()
+            target = target.cuda()
+
         output = tudui(imgs)
         loss = loss_fn(output, target)
         # 优化器优化模型
@@ -69,6 +101,10 @@ for i in range(epoch):
     with torch.no_grad():
         for data in test_dataloader:
             imgs, target = data
+            if torch.cuda.is_available():
+                imgs = imgs.cuda()
+                target = target.cuda()
+
             outputs = tudui(imgs)
             loss = loss_fn(outputs, target)
             total_test_loss = total_test_loss + loss.item()
@@ -77,9 +113,9 @@ for i in range(epoch):
             total_accuracy = total_accuracy + accuracy
 
     print(f"整体测试集上的loss:{total_test_loss}")
-    print(f"整体上测试集的正确率:{total_accuracy/test_data_size}")
+    print(f"整体上测试集的正确率:{total_accuracy / test_data_size}")
     writer.add_scalar("test_loss", total_test_loss, total_test_step)
-    writer.add_scalar("test_accuracy", total_accuracy/test_data_size, total_test_step)
+    writer.add_scalar("test_accuracy", total_accuracy / test_data_size, total_test_step)
     total_test_step = total_test_step + 1
 
     torch.save(tudui, "tudui.{}.pth".format(i))
